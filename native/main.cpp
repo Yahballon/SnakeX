@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SnakeX by YAHBALLON v0.2.0 | Native PS5 OpenGL game.
+// SnakeX by YAHBALLON v0.2.1 | Native PS5 OpenGL game.
 #include "game.hpp"
+#include "audio_device.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -66,15 +67,16 @@ GLuint load_bg(Renderer& renderer){
 void ensure_dir(){mkdir("/data/SnakeGame",0755);}
 void log(const char* msg){
  ensure_dir();if(FILE* f=fopen("/data/SnakeGame/game.log","ab")){
-  fprintf(f,"[SnakeX v0.2.0] %s\n",msg);fclose(f);
+  fprintf(f,"[SnakeX v0.2.1] %s\n",msg);fclose(f);
  }
 }
 void save(const Game& g){
  ensure_dir();
  FILE* f=fopen("/data/SnakeGame/save.tmp","wb");
  if(!f){log("save open failed");return;}
- fprintf(f,"v=1\nhigh=%d\nspeed=%d\nwalls=%d\nfood=%d\nmode=%d\n",
-  g.high_score,g.speed,int(g.walls),g.food_type,int(g.mode));
+ fprintf(f,"v=1\nhigh=%d\nspeed=%d\nwalls=%d\nfood=%d\nmode=%d\nmusic=%d\nsfx=%d\nvolume=%d\n",
+  g.high_score,g.speed,int(g.walls),g.food_type,int(g.mode),
+  int(g.music_enabled),int(g.sfx_enabled),g.audio_volume);
  if(fclose(f)==0 && rename("/data/SnakeGame/save.tmp","/data/SnakeGame/save.ini")!=0)log("save rename failed");
 }
 void load(Game& g){
@@ -88,6 +90,9 @@ void load(Game& g){
   else if(sscanf(buf,"walls=%d",&n)==1)g.walls=(n!=0);
   else if(sscanf(buf,"food=%d",&n)==1)g.set_food(n);
   else if(sscanf(buf,"mode=%d",&n)==1)g.set_mode(n);
+  else if(sscanf(buf,"music=%d",&n)==1)g.music_enabled=(n!=0);
+  else if(sscanf(buf,"sfx=%d",&n)==1)g.sfx_enabled=(n!=0);
+  else if(sscanf(buf,"volume=%d",&n)==1)g.audio_volume=std::clamp(n,0,10);
  }
  fclose(f);
 }
@@ -246,15 +251,18 @@ void overlay(DrawList& d,const Font& f,unsigned a,const Game& g){
   text(d,f,a,"X Select Mode   O Back",760,740,20,MUTED);
  }else if(g.page==Page::Settings){
   heading("SETTINGS");
-  const char* labels[]={"Snake Speed","Solid Walls","Food Type"};
-  const std::string values[]={std::to_string(g.speed)+" / 8",g.walls?"ON":"OFF",g.food_type==0?"Apple":g.food_type==1?"Cherry":"Golden"};
-  for(int i=0;i<3;i++){
-   float y=414+i*96;
-   d.bordered_rect({731,y,540,77},10,cc(g.settings_focus==i?0x154d30:0x0b2924),2,cc(g.settings_focus==i?0x80ff52:0x2a5543));
-   text(d,f,a,labels[i],757,y+48,25);
-   text(d,f,a,values[i],1239,y+48,24,cc(0xc2ff81),Align::right);
+  const char* labels[]={"Snake Speed","Solid Walls","Food Type","Jungle Music","Sound Effects","Master Volume"};
+  const std::string values[]={
+   std::to_string(g.speed)+" / 8",g.walls?"ON":"OFF",
+   g.food_type==0?"Apple":g.food_type==1?"Cherry":"Golden",
+   g.music_enabled?"ON":"OFF",g.sfx_enabled?"ON":"OFF",std::to_string(g.audio_volume)+" / 10"};
+  for(int i=0;i<6;i++){
+   float y=388+i*56;
+   d.bordered_rect({731,y,540,52},10,cc(g.settings_focus==i?0x154d30:0x0b2924),2,cc(g.settings_focus==i?0x80ff52:0x2a5543));
+   text(d,f,a,labels[i],757,y+35,22);
+   text(d,f,a,values[i],1239,y+35,22,cc(0xc2ff81),Align::right);
   }
-  text(d,f,a,"LEFT / RIGHT Adjust    O Back",755,729,21,MUTED);
+  text(d,f,a,"LEFT / RIGHT Adjust    O Back",755,740,21,MUTED);
  }else if(g.page==Page::Scores){
   heading("HIGH SCORES");
   text(d,f,a,"BEST SCORE",773,467,26,MUTED);
@@ -279,6 +287,9 @@ int main(){
  GLuint jungle=load_bg(renderer);
  hui::ps5::Pad pad;pad.open();
  Game g;load(g);g.seed(uint64_t(hui::sys::monotonic_us())^0xdead4411ULL);
+ snakex_audio::Output audio;
+ if(!audio.open())log(audio.error());else log("Audio SDL2 ready");
+ audio.settings(g.music_enabled,g.sfx_enabled,g.audio_volume,g.mode==Mode::Disco);
  log("Boot");uint32_t old_buttons=0;uint64_t repeat_at=0;
  int side_focus=-1;uint64_t prev=uint64_t(hui::sys::monotonic_us());
  float disco_phase=0.f;
@@ -307,15 +318,17 @@ int main(){
   bool up=bool(nav&hui::pad_bits::kUp),down=bool(nav&hui::pad_bits::kDown);
   bool left=bool(nav&hui::pad_bits::kLeft),right=bool(nav&hui::pad_bits::kRight);
   bool persist=false;
+  if(g.page!=Page::Game&&(up||down||left||right)&&g.sfx_enabled)
+   audio.play(snakex_audio::Effect::Menu);
   if(g.page==Page::Home){
    if(side_focus<0){
     if(up)g.focus=(g.focus+4)%5;
     if(down)g.focus=(g.focus+1)%5;
     if(right)side_focus=0;
-    if(pressed_key(hui::pad_bits::kSquare)){g.start();log("Game started");}
+    if(pressed_key(hui::pad_bits::kSquare)){g.start();audio.play(snakex_audio::Effect::Start);log("Game started");}
     if(pressed_key(hui::pad_bits::kCross)){
      switch(g.focus){
-      case 0:g.start();log("Game started");break;
+      case 0:g.start();audio.play(snakex_audio::Effect::Start);log("Game started");break;
       case 1:g.page=Page::Modes;g.mode_focus=int(g.mode);break;
       case 2:g.page=Page::Settings;g.settings_focus=0;break;
       case 3:g.page=Page::Scores;break;
@@ -342,15 +355,17 @@ int main(){
    else if(pressed_key(hui::pad_bits::kRight)||right)g.turn(Dir::Right);
    if(pressed_key(hui::pad_bits::kOptions)||pressed_key(hui::pad_bits::kCross))g.toggle_pause();
    if(pressed_key(hui::pad_bits::kCircle))g.toggle_pause();
+   const int beforeApple=g.apples;
    g.tick(dt);
+   if(g.apples>beforeApple){audio.play(snakex_audio::Effect::Apple);pad.rumble(.18f,.09f);}
    if(g.changed){persist=true;g.changed=false;}
-   if(g.page==Page::GameOver){persist=true;log("Game over");pad.rumble(.2f,.24f);}
+   if(g.page==Page::GameOver){audio.play(snakex_audio::Effect::GameOver);persist=true;log("Game over");pad.rumble(.2f,.24f);}
   }else if(g.page==Page::Paused){
    if(pressed_key(hui::pad_bits::kCross)||pressed_key(hui::pad_bits::kOptions))g.toggle_pause();
-   if(pressed_key(hui::pad_bits::kTriangle))g.start();
+   if(pressed_key(hui::pad_bits::kTriangle)){g.start();audio.play(snakex_audio::Effect::Start);}
    if(pressed_key(hui::pad_bits::kCircle)){g.page=Page::Home;side_focus=-1;persist=true;}
   }else if(g.page==Page::GameOver){
-   if(pressed_key(hui::pad_bits::kCross))g.start();
+   if(pressed_key(hui::pad_bits::kCross)){g.start();audio.play(snakex_audio::Effect::Start);}
    if(pressed_key(hui::pad_bits::kCircle)){g.page=Page::Home;side_focus=-1;}
   }else if(g.page==Page::Modes){
    if(up)g.mode_focus=(g.mode_focus+3)%4;
@@ -358,13 +373,16 @@ int main(){
    if(pressed_key(hui::pad_bits::kCross)){g.set_mode(g.mode_focus);persist=true;g.page=Page::Home;g.focus=1;}
    if(pressed_key(hui::pad_bits::kCircle)){g.page=Page::Home;g.focus=1;}
   }else if(g.page==Page::Settings){
-   if(up)g.settings_focus=(g.settings_focus+2)%3;
-   if(down)g.settings_focus=(g.settings_focus+1)%3;
+   if(up)g.settings_focus=(g.settings_focus+5)%6;
+   if(down)g.settings_focus=(g.settings_focus+1)%6;
    if(left||right||pressed_key(hui::pad_bits::kCross)){
     int delta=left?-1:1;
     if(g.settings_focus==0)g.set_speed(g.speed+delta);
     else if(g.settings_focus==1)g.walls=!g.walls;
-    else g.set_food(g.food_type+delta);
+    else if(g.settings_focus==2)g.set_food(g.food_type+delta);
+    else if(g.settings_focus==3)g.music_enabled=!g.music_enabled;
+    else if(g.settings_focus==4)g.sfx_enabled=!g.sfx_enabled;
+    else g.audio_volume=std::clamp(g.audio_volume+delta,0,10);
     persist=true;
    }
    if(pressed_key(hui::pad_bits::kCircle)){g.page=Page::Home;g.focus=2;}
@@ -372,7 +390,7 @@ int main(){
    if(pressed_key(hui::pad_bits::kCircle)||pressed_key(hui::pad_bits::kCross)){g.page=Page::Home;g.focus=3;}
   }else if(g.page==Page::Exit){
    if(pressed_key(hui::pad_bits::kCross)){
-    save(g);log("Exit");pad.close();
+    save(g);log("Exit");audio.close();pad.close();
     if(jungle)glDeleteTextures(1,&jungle);
     renderer.release();display.close();hui::sys::quit();
    }
@@ -380,6 +398,8 @@ int main(){
   }
   if(pressed_key(hui::pad_bits::kOptions)&&g.page==Page::Home){g.page=Page::Settings;g.settings_focus=0;}
   if(persist)save(g);
+  audio.settings(g.music_enabled,g.sfx_enabled,g.audio_volume,g.mode==Mode::Disco);
+  audio.pump();
   pad.tick(dt);
   DrawList d;
   if(jungle)d.image(jungle,{0,0,1920,1080},kFullUv,WHITE);

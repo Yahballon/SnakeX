@@ -1,8 +1,18 @@
 # SnakeX by YAHBALLON 🐍🪩
 
+**Latest release: v0.2.1 — Retro Jungle Audio.**
+
 Native offline PlayStation 5 homebrew Snake game featuring a neon jungle, a smooth animated Disco Mode, and an increasing speed challenge for every apple you eat.
 
 ![Build](https://github.com/Yahballon/SnakeX/actions/workflows/build.yml/badge.svg)
+
+## New in v0.2.1: 16-bit Retro Jungle Audio
+
+- An original, live-synthesized jungle soundtrack: rainforest wind, tropical digital birds, cicadas, tribal-style tom percussion, lo-fi hats, chip bass and an 8-bit/16-bit-inspired lead melody. Faster groove in Disco mode.
+- Feedback sounds for fruit collection, starting a game, menu navigation and game over.
+- A native SDL2 stereo PCM stream at 48 kHz, with small bounded audio queues and no downloaded audio assets, third-party songs or decoding/streaming libraries.
+- **Settings → Jungle Music, Sound Effects, Master Volume (0–10)**. All three save to `/data/SnakeGame/save.ini` alongside the previous data; older save files load with audio enabled by default.
+- If audio initialization fails on a particular PS5 setup, the game remains playable and logs the backend failure to `/data/SnakeGame/game.log`.
 
 ## Features
 - **Disco Mode:** a fourth selectable mode with slowly cycling neon/rainbow colors on the snake and outer frame, plus gently moving colored light bars across the board. Not a rapidly flashing strobe.

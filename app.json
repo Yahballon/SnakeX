@@ -1,10 +1,10 @@
 {
   "name": "SnakeX",
   "slug": "snakex",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "titleId": "PPSA99846",
   "contentId": "UP9000-PPSA99846_00-SNAKEHOMEBREW001",
-  "contentVersion": "01.000.002",
-  "releaseTag": "v0.2.0",
+  "contentVersion": "01.000.003",
+  "releaseTag": "v0.2.1",
   "developer": "YAHBALLON"
 }

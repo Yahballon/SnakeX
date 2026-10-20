@@ -34,12 +34,14 @@ jobs:
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Werror tests/game_test.cpp -o /tmp/ps5-snake-tests
           /tmp/ps5-snake-tests
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror tests/audio_test.cpp -o /tmp/snakex-audio-tests
+          /tmp/snakex-audio-tests
           python3 -m json.tool app.json > /dev/null
       - name: Stage actual native PS5 app
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
-          cp native/main.cpp native/game.hpp app/src/
+          cp native/main.cpp native/game.hpp native/jungle_audio.hpp native/audio_device.hpp app/src/
           python3 assets/generate_assets.py app
           python3 - <<'PY'
           import json
@@ -90,7 +92,7 @@ jobs:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
           PS5_CLANG: clang-18
-        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES=sdl2 app
       - name: Validate PS5 binary, metadata, icons and ZIP
         run: |
           python3 - <<'PY'
@@ -101,7 +103,7 @@ jobs:
           elf=(root/'eboot.bin').read_bytes()
           assert len(elf)>1000
           assert elf[:4]==struct.pack('<I',0x1d3d154f)
-          assert b'SnakeX v0.2.0' in elf or b'SnakeX by YAHBALLON v0.2.0' in elf
+          assert b'SnakeX v0.2.1' in elf or b'SnakeX by YAHBALLON v0.2.1' in elf
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99846'
           assert meta['contentId']=='UP9000-PPSA99846_00-SNAKEHOMEBREW001'
@@ -119,7 +121,7 @@ jobs:
       - name: Upload playable TEST ZIP artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SnakeX-v0.2.0-PPSA99846
+          name: SnakeX-v0.2.1-PPSA99846
           path: app/dist/PPSA99846.zip
           if-no-files-found: error
       - name: Release verified ZIP after merge to main
@@ -127,8 +129,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view v0.2.0 >/dev/null 2>&1; then
+          if gh release view v0.2.1 >/dev/null 2>&1; then
             echo 'Release already exists; not replacing assets.'
             exit 1
           fi
-          gh release create v0.2.0 app/dist/PPSA99846.zip --target "$GITHUB_SHA" --title "SnakeX by YAHBALLON v0.2.0" --notes-file RELEASE_NOTES.md
+          gh release create v0.2.1 app/dist/PPSA99846.zip --target "$GITHUB_SHA" --title "SnakeX by YAHBALLON v0.2.1" --notes-file RELEASE_NOTES.md
