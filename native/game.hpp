@@ -23,6 +23,7 @@ struct Game {
  int score=0,high_score=0,apples=0,focus=0,settings_focus=0,mode_focus=0;
  int speed=3,food_type=0; // Apple, Cherry, Golden
  bool walls=true,won=false,new_record=false,changed=false;
+ bool music_enabled=true,sfx_enabled=true;int audio_volume=7;
  float accumulator=0.f;
  Game(){reset_board();}
  void seed(uint64_t value){rng=value?value:0x2545f4914f6cdd1dULL;}

@@ -90,7 +90,7 @@ scene.alpha_composite(glow,(3,77))
 scene.alpha_composite(logo,(3,77))
 ld=ImageDraw.Draw(scene)
 ld.text((185,311),"BY YAHBALLON",font=font(26),fill=(214,255,241,255))
-ld.text((408,315),"v0.2.0",font=font(17),fill=(98,198,126,255))
+ld.text((408,315),"v0.2.1",font=font(17),fill=(98,198,126,255))
 # A few luminous motes, located outside gameplay frame.
 spots=Image.new("RGBA",(W,H));sd=ImageDraw.Draw(spots)
 for i in range(65):
